@@ -1,0 +1,56 @@
+#!/usr/bin/python
+import sys,re,os,subprocess
+
+if len(sys.argv) != 2:
+    print '%s <svn-rev>' % sys.argv[0]
+    sys.exit(1)
+
+svn_rev = int(sys.argv[1])
+newfile = False
+for line in sys.stdin:
+
+    # match the first line
+    m = re.match('^diff --git a/(?P<path>.*) b/(?P=path)\s*$', line)
+    if m:
+        sys.stdout.write('Index: %(path)s\n' % m.groupdict())
+        continue
+
+    # match the second line
+    m = re.match('^index ', line)
+    if m:
+        sys.stdout.write(63*'=')
+        sys.stdout.write('\n')
+        continue
+
+    m = re.match('^new file mode', line)
+    if m:
+      continue
+
+    # match the third line
+    mnf = re.match('^--- \/dev\/null', line)
+    if mnf:
+        newfile = True
+        continue
+
+    m = re.match('^--- a/(?P<path>.*)\s*$', line)
+    if m:
+        newfile = False
+        sys.stdout.write('--- %s\t(revision %s)\n' % 
+            (m.groupdict()['path'], svn_rev))
+        continue
+
+    # match the fourth line
+    m = re.match(r'^\+\+\+ b/(?P<path>.*)\s*$', line)
+    if m:
+        if newfile:
+            sys.stdout.write('--- %s\t(revision 0)\n' %
+                (m.groupdict()['path']))
+            sys.stdout.write('+++ %s\t(revision 0)\n' %
+                (m.groupdict()['path']))
+            continue
+        else:
+            sys.stdout.write('+++ %s\t(working copy)\n' % m.groupdict()['path'])
+            continue
+
+    # pass everything else through
+    sys.stdout.write(line)
